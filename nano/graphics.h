@@ -273,7 +273,7 @@ public:
   std::size_t get_bits_per_component() const;
   std::size_t get_bits_per_pixel() const;
   std::size_t get_bytes_per_row() const;
-  
+
   const std::uint8_t* data() const;
 
   void copy_data(std::vector<std::uint8_t>& buffer) const;
@@ -284,22 +284,231 @@ public:
 
   bool save(const std::filesystem::path& filepath, type fmt);
 
-  
   static nano::size<double> get_dpi(const std::string& filepath);
-  
+
   struct pimpl;
+
 private:
   pimpl* m_pimpl;
 };
 
+enum class text_alignment { left, center, right };
+
+/// https://developer.apple.com/documentation/quartzcore/cashapelayer/1521905-linecap?language=objc
+enum class line_join {
+  /// The edges of the adjacent line segments are continued to meet at a sharp point.
+  miter,
+
+  /// A join with a rounded end. Core Graphics draws the line to extend beyond
+  /// the endpoint of the path. The line ends with a semicircular arc with a
+  /// radius of 1/2 the line’s width, centered on the endpoint.
+  round,
+
+  /// A join with a squared-off end. Core Graphics draws the line to extend beyond
+  /// the endpoint of the path, for a distance of 1/2 the line’s width.
+  bevel
+
+};
+
+/// https://developer.apple.com/documentation/quartzcore/cashapelayer/1522147-linejoin?language=objc
+enum class line_cap {
+  /// A line with a squared-off end. Core Graphics draws the line to
+  /// extend only to the exact endpoint of the path.
+  /// This is the default.
+  butt,
+
+  /// A line with a rounded end. Core Graphics draws the line to extend beyond the
+  /// endpoint of the path. The line ends with a semicircular arc with a radius
+  /// of 1/2 the line’s width, centered on the endpoint.
+  round,
+
+  /// A line with a squared-off end. Core Graphics extends the line beyond the
+  /// endpoint of the path for a distance equal to half the line width.
+  square
+
+};
+
+///
+///
+///
+class font {
+public:
+  using handle = const void*;
+  struct filepath_tag {};
+
+  font();
+
+  ///
+  font(const char* font_name, double font_size);
+
+  ///
+  font(const char* filepath, double font_size, filepath_tag);
+
+  ///
+  font(const std::uint8_t* data, std::size_t data_size, double font_size);
+
+  font(const font& f);
+  font(font&& f);
+
+  ~font();
+
+  font& operator=(const font& f);
+
+  font& operator=(font&& f);
+
+  ///
+  bool is_valid() const noexcept;
+
+  ///
+  inline explicit operator bool() const noexcept { return is_valid(); }
+
+  ///
+  double get_height() const noexcept;
+
+  ///
+  double get_font_size() const noexcept;
+
+  ///
+  float get_string_width(std::string_view text) const;
+
+  handle get_native_font() const noexcept;
+
+  struct pimpl;
+
+private:
+  pimpl* m_pimpl;
+};
+
+///
+///
+///
+class graphic_context {
+public:
+  using handle = void*;
+  class scoped_state;
+
+  graphic_context(handle nc, bool is_bitmap = false);
+
+  graphic_context(const graphic_context&) = delete;
+  graphic_context(graphic_context&&) = delete;
+
+  ~graphic_context();
+
+  graphic_context& operator=(const graphic_context&) = delete;
+  graphic_context& operator=(graphic_context&&) = delete;
+
+  static graphic_context create_bitmap_context(const nano::size<std::size_t>& size, image::format fmt);
+
+  //  static graphic_context create_bitmap_context(const nano::size<std::size_t>& size, std::size_t bitsPerComponent,
+  //                 std::size_t bytesPerRow, image::format fmt,   std::uint8_t* buffer = nullptr);
+
+  /// CTM (current transformation matrix)
+  /// clip region
+  /// image interpolation quality
+  /// line width
+  /// line join
+  /// miter limit
+  /// line cap
+  /// line dash
+  /// flatness
+  /// should anti-alias
+  /// rendering intent
+  /// fill color space
+  /// stroke color space
+  /// fill color
+  /// stroke color
+  /// alpha value
+  /// font
+  /// font size
+  /// character spacing
+  /// text drawing mode
+  /// shadow parameters
+  /// the pattern phase
+  /// the font smoothing parameter
+  /// blend mode
+  void save_state();
+  void restore_state();
+
+  void begin_transparent_layer(float alpha);
+  void end_transparent_layer();
+
+  void translate(const nano::point<float>& pos);
+
+  void clip();
+  void clip_even_odd();
+  void reset_clip();
+  void clip_to_rect(const nano::rect<float>& rect);
+  // void clip_to_path(const nano::path& p);
+  // void clip_to_path_even_odd(const nano::path& p);
+  void clip_to_mask(const nano::image& img, const nano::rect<float>& rect);
+
+  void begin_path();
+  void close_path();
+  void add_rect(const nano::rect<float>& rect);
+  // void add_path(const nano::path& p);
+
+  nano::rect<float> get_clipping_rect() const;
+
+  void set_line_width(float width);
+  void set_line_join(line_join lj);
+  void set_line_cap(line_cap lc);
+  void set_line_style(float width, line_join lj, line_cap lc);
+
+  void set_fill_color(const nano::color& c);
+  void set_stroke_color(const nano::color& c);
+
+  void fill_rect(const nano::rect<float>& r);
+  void stroke_rect(const nano::rect<float>& r);
+  void stroke_rect(const nano::rect<float>& r, float line_width);
+
+  void stroke_line(const nano::point<float>& p0, const nano::point<float>& p1);
+
+  void fill_ellipse(const nano::rect<float>& r);
+  void stroke_ellipse(const nano::rect<float>& r);
+
+  void fill_rounded_rect(const nano::rect<float>& r, float radius);
+
+  void stroke_rounded_rect(const nano::rect<float>& r, float radius);
+  // void fill_quad(const nano::quad& q);
+  // void stroke_quad(const nano::quad& q);
+
+  // void fill_path(const nano::path& p);
+  // void fill_path(const nano::path& p, const nano::rect<float>& rect);
+  // void fill_path_with_shadow(
+  // const nano::path& p, float blur, const nano::color& shadow_color, const nano::size<float>& offset);
+
+  // void stroke_path(const nano::path& p);
+
+  void draw_image(const nano::image& img, const nano::point<float>& pos);
+  void draw_image(const nano::image& img, const nano::rect<float>& r);
+  void draw_image(const nano::image& img, const nano::rect<float>& r, const nano::rect<float>& clip_rect);
+
+  void draw_sub_image(const nano::image& img, const nano::rect<float>& r, const nano::rect<float>& img_rect);
+
+  void draw_text(const nano::font& f, const std::string& text, const nano::point<float>& pos);
+
+  void draw_text(
+      const nano::font& f, const std::string& text, const nano::rect<float>& rect, nano::text_alignment alignment);
+
+  // void set_shadow(float blur, const nano::color& shadow_color, const nano::size<float>& offset);
+
+  bool is_bitmap() const noexcept;
+
+  nano::image create_image();
+
+  handle get_handle() const noexcept;
+
+  struct pimpl;
+
+private:
+  pimpl* m_pimpl;
+};
 
 class display {
 public:
-
-  static double get_scale_factor();  
-  static double get_refresh_rate();  
+  static double get_scale_factor();
+  static double get_refresh_rate();
 };
-
 
 //------------------------
 

@@ -23,13 +23,12 @@ TEST_CASE("nano.graphics", Color, "Color") {
   nano::image img("/Users/alexandrearsenault/Desktop/vvv.png", nano::image::type::png);
 
   EXPECT_TRUE(img.is_valid());
-  
-  nano::image img_copy = img.get_sub_image({img.width() - 300, img.height() - 300, 300, 300});
+
+  nano::image img_copy = img.get_sub_image({ img.width() - 300, img.height() - 300, 300, 300 });
   img_copy.save("/Users/alexandrearsenault/Desktop/vvvffff2.jpg", nano::image::type::jpeg);
 
-  
   std::cout << "DPI " << nano::image::get_dpi("/Users/alexandrearsenault/Desktop/vvv.jpg") << std::endl;
-  
+
   img.save("/Users/alexandrearsenault/Desktop/vvv2.jpg", nano::image::type::jpeg);
 
   //  {1200,1600}
@@ -90,10 +89,34 @@ TEST_CASE("nano.graphics", Color, "Color") {
       bitsPerComponent * 4, //
       fsize.width * bytePerPixel,
       nano::image::format::float_rgba, //
-      ((const std::uint8_t*)(fbuffer.data())) + (fsize.height - 800) * fsize.width * bytePerPixel);
+      (reinterpret_cast<const std::uint8_t*>(fbuffer.data())) + (fsize.height - 800) * fsize.width * bytePerPixel);
 
   img3.save("/Users/alexandrearsenault/Desktop/vvv4.png", nano::image::type::png);
-  
+
+  //  nano::graphic_context gc = nano::graphic_context::create_bitmap_context({200, 200}, 8, 200 * 4,
+  //  nano::image::format::rgba);
+  nano::graphic_context gc = nano::graphic_context::create_bitmap_context({ 500, 500 }, nano::image::format::rgba);
+  gc.set_fill_color(0xFF0000FF);
+  gc.fill_rect({ 0, 0, 500, 500 });
+
+  gc.set_fill_color(0xFF00FFFF);
+
+  nano::rect<float> rect = { 20, 20, 200, 200 };
+  gc.fill_rect(rect);
+
+  gc.draw_image(img2, rect.reduced({ 10, 10 }));
+
+  nano::font ft("arial", 14);
+  gc.set_fill_color(0x000000FF);
+  gc.draw_text(ft, "Alex", { 5, 5 });
+
+  gc.draw_text(ft, "Alexandre", rect.reduced({ 10, 10 }), nano::text_alignment::center);
+
+  nano::image cimg = gc.create_image();
+  cimg.save("/Users/alexandrearsenault/Desktop/vvv343.png", nano::image::type::png);
+
+  //  create_bitmap_context(const nano::size<std::size_t>& size, std::size_t bitsPerComponent,
+  //                 std::size_t bytesPerRow, image::format fmt,   std::uint8_t* buffer)
 }
 } // namespace.
 

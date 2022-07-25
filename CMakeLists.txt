@@ -18,6 +18,7 @@ set(NAME graphics)
 set(MODULE_NAME nano-graphics)
 
 nano_add_module(geometry)
+
 set(NANO_GRAPHICS_SRC_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/nano")
 
 file(GLOB_RECURSE NANO_GRAPHICS_SOURCE_FILES
@@ -33,16 +34,21 @@ add_library(nano::${NAME} ALIAS ${MODULE_NAME})
 
 set_target_properties(${MODULE_NAME} PROPERTIES XCODE_GENERATE_SCHEME OFF)
 
-if (APPLE) 
-    target_link_libraries(${MODULE_NAME} PUBLIC
-        "-framework CoreFoundation"
-        "-framework CoreGraphics"
-        "-framework CoreText"
-        "-framework ImageIO"
-        "-framework CoreServices"
+if (APPLE)
+    nano_add_module(objc)
 
-        
+    target_link_libraries(${MODULE_NAME}
+        PUBLIC
+            "-framework CoreFoundation"
+            "-framework CoreGraphics"
+            "-framework CoreText"
+            "-framework ImageIO"
+            "-framework CoreServices"
+
+        PRIVATE
+            nano::objc
     )
+
 else()
     # target_link_libraries(${PROJECT_NAME} PUBLIC
     #     Gdiplus.lib
