@@ -1,13 +1,10 @@
-#include "nano/graphics.h"
+#include <nano/graphics.h>
 #include <nano/objc.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <ImageIO/ImageIO.h>
 #include <CoreText/CoreText.h>
 #include <CoreServices/CoreServices.h>
-
-#include <iostream>
-//#include <thread>
 
 #include <fstream>
 #include <errno.h>
@@ -24,66 +21,9 @@
 #define NANO_UTTypeJPEG CFSTR("public.jpeg")
 
 namespace nano {
-template <std::size_t N>
-inline CFDictionaryRef create_cf_dictionary(CFStringRef const (&keys)[N], CFTypeRef const (&values)[N]) {
-  return CFDictionaryCreate(kCFAllocatorDefault, reinterpret_cast<const void**>(&keys),
-      reinterpret_cast<const void**>(&values), N, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-}
-
-inline cf_unique_ptr<CFStringRef> create_cf_string_ptr(const char* str) {
-  return cf_unique_ptr<CFStringRef>(CFStringCreateWithCString(kCFAllocatorDefault, str, kCFStringEncodingUTF8));
-}
-
-inline cf_unique_ptr<CFStringRef> create_cf_string_ptr(std::string_view str) {
-  return cf_unique_ptr<CFStringRef>(CFStringCreateWithBytes(kCFAllocatorDefault,
-      reinterpret_cast<const UInt8*>(str.data()), static_cast<CFIndex>(str.size()), kCFStringEncodingUTF8, false));
-}
-
-//
-// namespace detail {
-//
-//  template <typename _CFType>
-//  struct cf_object_deleter {
-//    inline void operator()(std::add_pointer_t<std::remove_pointer_t<_CFType>> obj) const noexcept {
-//        CFRelease(obj);
-//    }
-//  };
-//
-//
-// template <class _CFType>
-// using cf_unique_ptr_type = std::unique_ptr<std::remove_pointer_t<_CFType>, detail::cf_object_deleter<_CFType>>;
-//
-//
-///// A unique_ptr for CFTypes.
-///// The deleter will call CFRelease().
-///// @remarks The _CFType can either be a CFTypeRef of the underlying type (e.g.
-///// CFStringRef or __CFString).
-/////          In other words, as opposed to std::unique_ptr<>, _CFType can also
-/////          be a pointer.
-// template <class _CFType>
-// struct cf_unique_ptr : cf_unique_ptr_type<_CFType> {
-//   using base = cf_unique_ptr_type<_CFType>;
-//
-//   inline cf_unique_ptr(_CFType ptr) : base(ptr) {}
-//   cf_unique_ptr(cf_unique_ptr&&) = delete;
-//   cf_unique_ptr& operator=(cf_unique_ptr&&) = delete;
-//
-//   inline operator _CFType() const {
-//     return base::get();
-//   }
-//
-//   template <class T, std::enable_if_t<std::is_convertible_v<_CFType, T>, std::nullptr_t> = nullptr>
-//   inline T as() const {
-//       return static_cast<T>(base::get());
-//   }
-// };
-// } // namespace detail.
-
-template <class _CFType>
-using cf_ptr = nano::cf_unique_ptr<_CFType>;
 
 double display::get_refresh_rate() {
-  nano::cf_ptr<CGDisplayModeRef> mode = CGDisplayCopyDisplayMode(CGMainDisplayID());
+  nano::cf::unique_ptr<CGDisplayModeRef> mode = CGDisplayCopyDisplayMode(CGMainDisplayID());
   return mode ? CGDisplayModeGetRefreshRate(mode) : 0;
 }
 
@@ -101,7 +41,7 @@ double display::get_refresh_rate() {
 
 double display::get_scale_factor() {
   CGDirectDisplayID main_id = CGMainDisplayID();
-  nano::cf_ptr<CGDisplayModeRef> mode = CGDisplayCopyDisplayMode(main_id);
+  cf::unique_ptr<CGDisplayModeRef> mode = CGDisplayCopyDisplayMode(main_id);
 
   if (!mode) {
     return 1;
@@ -119,19 +59,19 @@ struct image::pimpl {
 image::image() { m_pimpl = new pimpl; }
 
 nano::size<double> image::get_dpi(const std::string& filepath) {
-  nano::cf_ptr<CGDataProviderRef> dataProvider = CGDataProviderCreateWithFilename(filepath.c_str());
+  cf::unique_ptr<CGDataProviderRef> dataProvider = CGDataProviderCreateWithFilename(filepath.c_str());
 
   if (!dataProvider) {
     return { 0.0, 0.0 };
   }
 
-  nano::cf_ptr<CGImageSourceRef> imageRef = CGImageSourceCreateWithDataProvider(dataProvider, nullptr);
+  cf::unique_ptr<CGImageSourceRef> imageRef = CGImageSourceCreateWithDataProvider(dataProvider, nullptr);
 
   if (!imageRef) {
     return { 0.0, 0.0 };
   }
 
-  nano::cf_ptr<CFDictionaryRef> imagePropertiesDict = CGImageSourceCopyPropertiesAtIndex(imageRef, 0, nullptr);
+  cf::unique_ptr<CFDictionaryRef> imagePropertiesDict = CGImageSourceCopyPropertiesAtIndex(imageRef, 0, nullptr);
 
   if (!imagePropertiesDict) {
     return { 0.0, 0.0 };
@@ -201,7 +141,7 @@ inline void nameee(pid_t pid) {
 image::image(const std::string& filepath, type img_type) {
   m_pimpl = new pimpl;
 
-  nano::cf_ptr<CGDataProviderRef> dataProvider = CGDataProviderCreateWithFilename(filepath.c_str());
+  cf::unique_ptr<CGDataProviderRef> dataProvider = CGDataProviderCreateWithFilename(filepath.c_str());
   assert(dataProvider != nullptr);
 
   if (!dataProvider) {
@@ -282,9 +222,9 @@ image::image(const nano::size<std::size_t>& size, std::size_t bitsPerComponent, 
     break;
   }
 
-  nano::cf_ptr<CGDataProviderRef> dataProvider(
+  cf::unique_ptr<CGDataProviderRef> dataProvider(
       CGDataProviderCreateWithData(nullptr, buffer, bytesPerRow * size.height, nullptr));
-  nano::cf_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+  cf::unique_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
 
   m_pimpl->img = CGImageCreate(size.width, size.height, bitsPerComponent, bitsPerPixel, bytesPerRow, colorSpace,
       bmp_info, dataProvider, nullptr, false, kCGRenderingIntentDefault);
@@ -401,7 +341,7 @@ const std::uint8_t* image::data() const {
   }
 
   CGDataProviderRef dataProvider = CGImageGetDataProvider(m_pimpl->img);
-  return CFDataGetBytePtr(nano::cf_ptr<CFDataRef>(CGDataProviderCopyData(dataProvider)));
+  return CFDataGetBytePtr(cf::unique_ptr<CFDataRef>(CGDataProviderCopyData(dataProvider)));
 }
 
 void image::copy_data(std::vector<std::uint8_t>& buffer) const {
@@ -410,7 +350,7 @@ void image::copy_data(std::vector<std::uint8_t>& buffer) const {
   }
 
   CGDataProviderRef dataProvider = CGImageGetDataProvider(m_pimpl->img);
-  nano::cf_ptr<CFDataRef> cfData = CGDataProviderCopyData(dataProvider);
+  cf::unique_ptr<CFDataRef> cfData = CGDataProviderCopyData(dataProvider);
 
   std::size_t data_size = CFDataGetLength(cfData);
   buffer.resize(data_size);
@@ -432,33 +372,33 @@ std::vector<std::uint8_t> image::get_data() const {
 // }
 
 image image::make_copy() {
-  return is_valid() ? image(nano::cf_ptr<CGImageRef>(CGImageCreateCopy(m_pimpl->img)).as<handle>()) : image();
+  return is_valid() ? image(cf::unique_ptr<CGImageRef>(CGImageCreateCopy(m_pimpl->img)).as<handle>()) : image();
 }
 
 image image::get_sub_image(const nano::rect<std::size_t>& r) const {
   return is_valid()
-      ? image(nano::cf_ptr<CGImageRef>(CGImageCreateWithImageInRect(m_pimpl->img, r.convert<CGRect>())).as<handle>())
+      ? image(cf::unique_ptr<CGImageRef>(CGImageCreateWithImageInRect(m_pimpl->img, r.convert<CGRect>())).as<handle>())
       : image();
 }
 
 namespace {
-  static inline nano::cf_ptr<CGContextRef> create_bitmap_context(const nano::size<std::size_t>& size) {
+  static inline cf::unique_ptr<CGContextRef> create_bitmap_context(const nano::size<std::size_t>& size) {
     return CGBitmapContextCreate(nullptr, size.width, size.height, 8, size.width * 4,
-        nano::cf_ptr<CGColorSpaceRef>(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB)),
+        cf::unique_ptr<CGColorSpaceRef>(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB)),
         kCGImageAlphaPremultipliedLast);
   }
 
   static inline image create_colored_image_impl(const nano::image& img, const nano::color& color) {
     nano::rect<int> rect = img.get_rect();
 
-    nano::cf_ptr<CGContextRef> ctx = create_bitmap_context(rect.size);
+    cf::unique_ptr<CGContextRef> ctx = create_bitmap_context(rect.size);
     CGContextClipToMask(ctx, rect.convert<CGRect>(), reinterpret_cast<CGImageRef>(img.get_native_image()));
 
     CGContextSetRGBFillColor(
         ctx, color.red<CGFloat>(), color.green<CGFloat>(), color.blue<CGFloat>(), color.alpha<CGFloat>());
     CGContextFillRect(ctx, rect.convert<CGRect>());
 
-    return image(reinterpret_cast<image::handle>(nano::cf_ptr<CGImageRef>(CGBitmapContextCreateImage(ctx)).get()));
+    return image(reinterpret_cast<image::handle>(cf::unique_ptr<CGImageRef>(CGBitmapContextCreateImage(ctx)).get()));
   }
 
 } // namespace.
@@ -486,10 +426,10 @@ bool image::save(const std::filesystem::path& filepath, type img_type) {
     return false;
   }
 
-  nano::cf_ptr<CFURLRef> url = CFURLCreateFromFileSystemRepresentation(
+  cf::unique_ptr<CFURLRef> url = CFURLCreateFromFileSystemRepresentation(
       kCFAllocatorDefault, (const UInt8*)filepath.c_str(), std::string_view(filepath.c_str()).size(), false);
 
-  nano::cf_ptr<CGImageDestinationRef> dest
+  cf::unique_ptr<CGImageDestinationRef> dest
       = CGImageDestinationCreateWithURL(url, get_image_type_string(img_type), 1, nullptr);
   CGImageDestinationAddImage(dest, m_pimpl->img, nullptr);
   return CGImageDestinationFinalize(dest);
@@ -510,7 +450,7 @@ bool image::save(const std::filesystem::path& filepath, type img_type) {
 /// kCFStringEncodingUTF8, false); /  CFURLRef url = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, st,
 /// kCFURLPOSIXPathStyle, false);
 //
-//  nano::cf_ptr<CFURLRef> url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const
+//  cf::unique_ptr<CFURLRef> url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const
 //  UInt8*)filepath.c_str(), std::string_view(filepath.c_str()).size(), false);
 //
 //
@@ -551,7 +491,7 @@ bool image::save(const std::filesystem::path& filepath, type img_type) {
 ////    break;
 ////  }
 //
-////  nano::cf_ptr<CGImageDestinationRef> dest = CGImageDestinationCreateWithURL(url, typeString, 1, properties);
+////  cf::unique_ptr<CGImageDestinationRef> dest = CGImageDestinationCreateWithURL(url, typeString, 1, properties);
 //
 //  float dpi = 150;
 //  CFNumberRef dpi_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberFloat32Type, reinterpret_cast<const void
@@ -566,14 +506,14 @@ bool image::save(const std::filesystem::path& filepath, type img_type) {
 //
 //  float ppm = 2;
 //  CFNumberRef ppm_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberFloat32Type, reinterpret_cast<const void
-//  *>(&ppm)); nano::cf_unique_ptr<CFDictionaryRef> png_props(nano::create_cf_dictionary(
+//  *>(&ppm)); cf::unique_ptr<CFDictionaryRef> png_props(cf::create_dictionary(
 //      { kCGImagePropertyPNGTitle, kCGImagePropertyPNGAuthor }, { CFSTR("JOHN"), CFSTR("AlexA") }));
 //
 //
 //
 //
 //  // , kCGImagePropertyDPIHeight, kCGImagePropertyDPIWidth, kCGImagePropertyPixelWidth, kCGImagePropertyPixelHeight
-//  nano::cf_unique_ptr<CFDictionaryRef> properties(nano::create_cf_dictionary(
+//  cf::unique_ptr<CFDictionaryRef> properties(cf::create_dictionary(
 //      { kCGImagePropertyPNGDictionary , kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight}, { png_props.get(),
 //      dpi_ref, dpi_ref}));
 //
@@ -581,7 +521,7 @@ bool image::save(const std::filesystem::path& filepath, type img_type) {
 //
 //
 ////  CGImageDestinationSetProperties(dest, properties);
-//  nano::cf_ptr<CGImageDestinationRef> dest = CGImageDestinationCreateWithURL(url, typeString, 1, nullptr);
+//  cf::unique_ptr<CGImageDestinationRef> dest = CGImageDestinationCreateWithURL(url, typeString, 1, nullptr);
 //
 //
 //  CGImageDestinationAddImage(dest, m_pimpl->img, properties);
@@ -624,13 +564,8 @@ font::font() {
 }
 
 font::font(const char* fontName, double fontSize) {
-
-  CFStringRef cfName = CFStringCreateWithCString(kCFAllocatorDefault, fontName, kCFStringEncodingUTF8);
-
   m_pimpl = new pimpl(fontSize);
-  m_pimpl->font = CTFontCreateWithName(cfName, static_cast<CGFloat>(fontSize), nullptr);
-
-  CFRelease(cfName);
+  m_pimpl->font = CTFontCreateWithName(cf::create_string(fontName), static_cast<CGFloat>(fontSize), nullptr);
 
   //  m_native = (native*)CTFontCreateWithName(cfName, static_cast<CGFloat>(m_font_size), nullptr);
 }
@@ -791,15 +726,15 @@ float font::get_string_width(std::string_view text) const {
     return 0;
   }
 
-  nano::cf_unique_ptr<CFDictionaryRef> attributes(nano::create_cf_dictionary(
-      { kCTFontAttributeName, kCTLigatureAttributeName }, { m_pimpl->font, kCFBooleanTrue }));
+  cf::unique_ptr<CFDictionaryRef> attributes(
+      cf::create_dictionary({ kCTFontAttributeName, kCTLigatureAttributeName }, { m_pimpl->font, kCFBooleanTrue }));
 
-  nano::cf_unique_ptr<CFStringRef> str = nano::create_cf_string_ptr(text);
+  cf::unique_ptr<CFStringRef> str = nano::cf::create_string(text);
 
-  nano::cf_unique_ptr<CFAttributedStringRef> attr_str(
+  cf::unique_ptr<CFAttributedStringRef> attr_str(
       CFAttributedStringCreate(kCFAllocatorDefault, str.get(), attributes.get()));
 
-  nano::cf_unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
+  cf::unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
   CFArrayRef run_array = CTLineGetGlyphRuns(line.get());
 
   float x = 0;
@@ -1147,15 +1082,6 @@ void graphic_context::draw_image(const nano::image& img, const nano::rect<float>
         CGContextTranslateCTM(g, static_cast<CGFloat>(-rect.x), static_cast<CGFloat>(-rect.y));
       },
       img, rect);
-
-  //  CGContextRef g = m_pimpl->gc;
-  //  CGContextTranslateCTM(g, static_cast<CGFloat>(rect.x), static_cast<CGFloat>(rect.y));
-  //  pimpl::flip(g, rect.height);
-  //  CGContextDrawImage(
-  //      g, rect.with_position({ 0.0f, 0.0f }).convert<CGRect>(),
-  //      reinterpret_cast<CGImageRef>(img.get_native_image()));
-  //  pimpl::flip(g, rect.height);
-  //  CGContextTranslateCTM(g, static_cast<CGFloat>(-rect.x), static_cast<CGFloat>(-rect.y));
 }
 
 void graphic_context::draw_image(
@@ -1195,14 +1121,14 @@ void graphic_context::draw_text(const nano::font& f, const std::string& text, co
       [](CGContextRef g, const nano::font& f, const std::string& text, const nano::point<float>& pos) {
         const double fontHeight = f.is_valid() ? f.get_height() : k_default_mac_font_height;
 
-        nano::cf_unique_ptr<CFDictionaryRef> attributes(
-            nano::create_cf_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
+        cf::unique_ptr<CFDictionaryRef> attributes(
+            cf::create_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
                 { reinterpret_cast<CTFontRef>(f.get_native_font()), kCFBooleanTrue }));
 
-        nano::cf_unique_ptr<CFStringRef> str = nano::create_cf_string_ptr(text);
-        nano::cf_unique_ptr<CFAttributedStringRef> attr_str(
+        cf::unique_ptr<CFStringRef> str = nano::cf::create_string(text);
+        cf::unique_ptr<CFAttributedStringRef> attr_str(
             CFAttributedStringCreate(kCFAllocatorDefault, str.get(), attributes.get()));
-        nano::cf_unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
+        cf::unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
 
         CGContextSetTextDrawingMode(g, kCGTextFill);
         CGContextSetTextMatrix(g, CGAffineTransformMake(1.0, 0.0, 0.0, -1.0, 0.0, fontHeight));
@@ -1210,23 +1136,6 @@ void graphic_context::draw_text(const nano::font& f, const std::string& text, co
         CTLineDraw(line.get(), g);
       },
       f, text, pos);
-
-  //  const double fontHeight = f.is_valid() ? f.get_height() : k_default_mac_font_height;
-  //  CGContextRef g = m_pimpl->gc;
-  //
-  //  nano::cf_unique_ptr<CFDictionaryRef> attributes(
-  //      nano::create_cf_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
-  //          { reinterpret_cast<CTFontRef>(f.get_native_font()), kCFBooleanTrue }));
-  //
-  //  nano::cf_unique_ptr<CFStringRef> str = nano::create_cf_string_ptr(text);
-  //  nano::cf_unique_ptr<CFAttributedStringRef> attr_str(
-  //      CFAttributedStringCreate(kCFAllocatorDefault, str.get(), attributes.get()));
-  //  nano::cf_unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
-  //
-  //  CGContextSetTextDrawingMode(g, kCGTextFill);
-  //  CGContextSetTextMatrix(g, CGAffineTransformMake(1.0, 0.0, 0.0, -1.0, 0.0, fontHeight));
-  //  CGContextSetTextPosition(g, static_cast<CGFloat>(pos.x), static_cast<CGFloat>(pos.y) + fontHeight);
-  //  CTLineDraw(line.get(), g);
 }
 
 void graphic_context::draw_text(
@@ -1237,14 +1146,14 @@ void graphic_context::draw_text(
           nano::text_alignment alignment) {
         const double fontHeight = f.is_valid() ? f.get_height() : k_default_mac_font_height;
 
-        nano::cf_unique_ptr<CFDictionaryRef> attributes(
-            nano::create_cf_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
-                { reinterpret_cast<CTFontRef>(f.get_native_font()), kCFBooleanTrue }));
+        cf::unique_ptr<CFDictionaryRef> attributes
+            = cf::create_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
+                { reinterpret_cast<CTFontRef>(f.get_native_font()), kCFBooleanTrue });
 
-        nano::cf_unique_ptr<CFStringRef> str = nano::create_cf_string_ptr(text);
-        nano::cf_unique_ptr<CFAttributedStringRef> attr_str(
-            CFAttributedStringCreate(kCFAllocatorDefault, str.get(), attributes.get()));
-        nano::cf_unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
+        cf::unique_ptr<CFStringRef> str = nano::cf::create_string(text);
+        cf::unique_ptr<CFAttributedStringRef> attr_str = CFAttributedStringCreate(kCFAllocatorDefault, str, attributes);
+
+        cf::unique_ptr<CTLineRef> line = CTLineCreateWithAttributedString(attr_str);
 
         nano::point<float> textPos = { 0.0f, 0.0f };
 
@@ -1255,13 +1164,13 @@ void graphic_context::draw_text(
         } break;
 
         case nano::text_alignment::center: {
-          float textWidth = static_cast<float>(CTLineGetTypographicBounds(line.get(), nullptr, nullptr, nullptr));
+          float textWidth = static_cast<float>(CTLineGetTypographicBounds(line, nullptr, nullptr, nullptr));
           textPos = rect.position
               + nano::point<float>(rect.width - textWidth, rect.height + static_cast<float>(fontHeight)) * 0.5f;
         } break;
 
         case nano::text_alignment::right: {
-          float textWidth = static_cast<float>(CTLineGetTypographicBounds(line.get(), nullptr, nullptr, nullptr));
+          float textWidth = static_cast<float>(CTLineGetTypographicBounds(line, nullptr, nullptr, nullptr));
           textPos = rect.position
               + nano::point<float>(rect.width - textWidth, (rect.height + static_cast<float>(fontHeight)) * 0.5f);
         }
@@ -1275,47 +1184,6 @@ void graphic_context::draw_text(
         CTLineDraw(line.get(), g);
       },
       f, text, rect, alignment);
-
-  //
-  //  const double fontHeight = f.is_valid() ? f.get_height() : k_default_mac_font_height;
-  //  CGContextRef g = m_pimpl->gc;
-  //
-  //  nano::cf_unique_ptr<CFDictionaryRef> attributes(
-  //      nano::create_cf_dictionary({ kCTFontAttributeName, kCTForegroundColorFromContextAttributeName },
-  //          { reinterpret_cast<CTFontRef>(f.get_native_font()), kCFBooleanTrue }));
-  //
-  //  nano::cf_unique_ptr<CFStringRef> str = nano::create_cf_string_ptr(text);
-  //  nano::cf_unique_ptr<CFAttributedStringRef> attr_str(
-  //      CFAttributedStringCreate(kCFAllocatorDefault, str.get(), attributes.get()));
-  //  nano::cf_unique_ptr<CTLineRef> line(CTLineCreateWithAttributedString(attr_str.get()));
-  //
-  //  nano::point<float> textPos = { 0.0f, 0.0f };
-  //
-  //  // Left.
-  //  switch (alignment) {
-  //  case nano::text_alignment::left: {
-  //    textPos = nano::point<float>(rect.x, rect.y + (rect.height + static_cast<float>(fontHeight)) * 0.5f);
-  //  } break;
-  //
-  //  case nano::text_alignment::center: {
-  //    float textWidth = static_cast<float>(CTLineGetTypographicBounds(line.get(), nullptr, nullptr, nullptr));
-  //    textPos = rect.position
-  //        + nano::point<float>(rect.width - textWidth, rect.height + static_cast<float>(fontHeight)) * 0.5f;
-  //  } break;
-  //
-  //  case nano::text_alignment::right: {
-  //    float textWidth = static_cast<float>(CTLineGetTypographicBounds(line.get(), nullptr, nullptr, nullptr));
-  //    textPos = rect.position
-  //        + nano::point<float>(rect.width - textWidth, (rect.height + static_cast<float>(fontHeight)) * 0.5f);
-  //  }
-  //
-  //  break;
-  //  }
-  //
-  //  CGContextSetTextDrawingMode(g, kCGTextFill);
-  //  CGContextSetTextMatrix(g, CGAffineTransformMake(1.0, 0.0, 0.0, -1.0, 0.0, fontHeight));
-  //  CGContextSetTextPosition(g, static_cast<CGFloat>(textPos.x), static_cast<CGFloat>(textPos.y));
-  //  CTLineDraw(line.get(), g);
 }
 
 graphic_context::handle graphic_context::get_handle() const noexcept { return reinterpret_cast<handle>(m_pimpl->gc); }
@@ -1394,7 +1262,7 @@ graphic_context graphic_context::create_bitmap_context(const nano::size<std::siz
     break;
   }
 
-  nano::cf_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+  cf::unique_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
   return graphic_context(CGBitmapContextCreate(nullptr, size.width, size.height, 8, 4 * size.width, colorSpace,
                              kCGImageAlphaPremultipliedLast),
       true);
@@ -1468,7 +1336,7 @@ graphic_context graphic_context::create_bitmap_context(const nano::size<std::siz
 ////      size_t width, size_t height, size_t bitsPerComponent, size_t bytesPerRow,
 ////      CGColorSpaceRef cg_nullable space, uint32_t bitmapInfo)
 ////
-//   nano::cf_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+//   cf::unique_ptr<CGColorSpaceRef> colorSpace(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
 //
 //
 //  if (buffer) {

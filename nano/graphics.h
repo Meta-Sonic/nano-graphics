@@ -14,25 +14,21 @@
 #pragma once
 
 /*!
- * @file      geometry.h
- * @brief     nano geometry
+ * @file      nano/graphics.h
+ * @brief     nano graphics
  * @copyright Copyright (C) 2022, Meta-Sonic
  * @author    Alexandre Arsenault alx.arsenault@gmail.com
  * @date      Created 16/06/2022
  */
 
-#include <algorithm>
-#include <cmath>
+#include <nano/common.h>
+#include <nano/geometry.h>
+
 #include <filesystem>
 #include <iomanip>
-#include <limits>
-#include <ostream>
 #include <string>
 #include <string_view>
-#include <type_traits>
-#include <utility>
 #include <vector>
-#include "nano/geometry.h"
 
 NANO_CLANG_DIAGNOSTIC_PUSH()
 NANO_CLANG_DIAGNOSTIC(warning, "-Weverything")
@@ -64,6 +60,7 @@ public:
 
   NANO_INLINE_CXPR static color black() NANO_NOEXCEPT { return color(0x000000ff); }
   NANO_INLINE_CXPR static color white() NANO_NOEXCEPT { return color(0xffffffff); }
+  NANO_INLINE_CXPR static color grey(std::uint8_t c) NANO_NOEXCEPT { return color(c, c, c, 0xFF); }
 
   color() NANO_NOEXCEPT = default;
   color(const color&) NANO_NOEXCEPT = default;
@@ -199,8 +196,7 @@ public:
   NANO_NODC_INLINE_CXPR bool operator!=(const color& c) const NANO_NOEXCEPT;
 
   template <class CharT, class TraitsT>
-  inline friend std::basic_ostream<CharT, TraitsT>& operator<<(
-      std::basic_ostream<CharT, TraitsT>& s, const nano::color& c);
+  inline friend std::basic_ostream<CharT, TraitsT>& operator<<(std::basic_ostream<CharT, TraitsT>& s, nano::color c);
 
 private:
   std::uint32_t m_rgba;
@@ -746,7 +742,7 @@ NANO_NODC_INLINE_CXPR color color::darker(float amount) const NANO_NOEXCEPT {
 }
 
 NANO_NODC_INLINE_CXPR color color::brighter(float amount) const NANO_NOEXCEPT {
-  const float ratio = 1.0f / (1.0f + std::abs(amount));
+  const float ratio = 1.0f / (1.0f + cxpr::abs(amount));
   const float mu = 255 * (1.0f - ratio);
 
   return color(static_cast<std::uint8_t>(mu + ratio * red()), // r
@@ -783,13 +779,21 @@ NANO_NODC_INLINE_CXPR bool color::operator==(const color& c) const NANO_NOEXCEPT
 NANO_NODC_INLINE_CXPR bool color::operator!=(const color& c) const NANO_NOEXCEPT { return !operator==(c); }
 
 template <class CharT, class TraitsT>
-inline std::basic_ostream<CharT, TraitsT>& operator<<(std::basic_ostream<CharT, TraitsT>& s, const nano::color& c) {
+inline std::basic_ostream<CharT, TraitsT>& operator<<(std::basic_ostream<CharT, TraitsT>& s, nano::color c) {
   std::ios_base::fmtflags flags(s.flags());
   s << CharT('#') << std::uppercase << std::hex << std::setfill(CharT('0')) << std::setw(8) << c.rgba();
   s.flags(flags);
   return s;
 }
 
+namespace colors {
+  NANO_INLINE_CXPR nano::color transparent = 0x00000000;
+  NANO_INLINE_CXPR nano::color black = 0x000000FF;
+  NANO_INLINE_CXPR nano::color white = 0xFFFFFFFF;
+  NANO_INLINE_CXPR nano::color red = 0xFF0000FF;
+  NANO_INLINE_CXPR nano::color green = 0x00FF00FF;
+  NANO_INLINE_CXPR nano::color blue = 0x0000FFFF;
+} // namespace colors.
 } // namespace nano.
 
 NANO_CLANG_DIAGNOSTIC_POP()

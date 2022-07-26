@@ -1,5 +1,5 @@
-#include "nano/graphics.h"
-#include "nano/test.h"
+#include <nano/test.h>
+#include <nano/graphics.h>
 #include <thread>
 
 namespace {
